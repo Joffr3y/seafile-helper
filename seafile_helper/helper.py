@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding:Utf-8 -*-
-"""Seafile-server and seahub helper for upgrade and deployment
+"""\
+Seafile-server and seahub helper for upgrade and deployment
 Copyright (C) 2018 Joffrey Darcq
 
 This program is free software: you can redistribute it and/or modify
@@ -237,7 +238,7 @@ class Helper(Color):
                     self.__wkdir, 'seahub/locale',
                     self.__locale, 'LC_MESSAGES'))
             except FileNotFoundError:
-                print('ignored "{}" not available'.format(self.__locale))
+                self.verbose('"{}" not available\n'.format(self.__locale))
             else:
                 os.system('msgfmt -o django.mo django.po')
                 os.chdir(self.__wkdir)
@@ -304,9 +305,11 @@ def main():
                     args.no_color)
     scriptname = os.path.basename(sys.argv[0])
     try:
-        if len(sys.argv) == 1:
-            sys.exit('Argument missing, view « {} --help »'.format(scriptname))
-        elif args.interactive:
+        sys.argv[1]
+    except IndexError:
+        sys.exit('Argument missing, view « {} --help »'.format(scriptname))
+    try:
+        if args.interactive:
             helper.interactive()
         elif args.about:
             print(scriptname + ' version ' + VERSION)
