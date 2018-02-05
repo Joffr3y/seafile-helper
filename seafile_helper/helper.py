@@ -15,10 +15,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+along with this program.  If not, see <https://www.gnu.org/licenses/>.\
 """
 
-VERSION = '0.1'
+VERSION = '0.1.2'
 
 import os
 import sys
@@ -100,7 +100,7 @@ class Helper(Color):
     def get_upgrades_available(self):
         """Return list of upgrades available
         """
-        os.chdir(os.path.join(self.__pkgdir, 'scripts', 'upgrade'))
+        os.chdir(os.path.join(self.__pkgdir, 'upgrade'))
         return sorted(glob.glob('*upgrade*.sh'))
 
     def check(self):
@@ -129,23 +129,22 @@ class Helper(Color):
         else:
             return True
 
-    def prepare_upgrade(self):
-        """Prepare upgrade
+    def prepare_server(self):
+        """Prepare server
         Import requierements
         Remove seahub-old and old upgrade
         Backup seahub to seahub-old
         Import seahub and upgrades
         """
         ## Requierements
-        self.verbose('-> Import runtime content... ')
+        self.verbose('-> Import runtime... ')
         try:
-            os.mkdir('runtime', 0o755)
+            shutil.copytree(
+                os.path.join(self.__pkgdir, 'runtime'),
+                os.path.join(self.__wkdir, 'runtime'))
         except FileExistsError:
             self.verbose('Already exist\n')
         else:
-            shutil.copy2(
-                os.path.join(self.__pkgdir, 'scripts', 'seahub.conf'),
-                os.path.join(self.__wkdir, 'runtime', 'seahub.conf'))
             self.verbose('Done\n')
         ## Remove
         for dire in ('upgrade', 'seahub-old'):
@@ -170,7 +169,7 @@ class Helper(Color):
         ## Import
         self.verbose('-> Import scripts upgrade... ')
         shutil.copytree(
-            os.path.join(self.__pkgdir, 'scripts', 'upgrade'),
+            os.path.join(self.__pkgdir, 'upgrade'),
             os.path.join(self.__wkdir, 'upgrade'))
         self.verbose('Done\n')
         self.verbose('-> Import seahub... ')
@@ -241,7 +240,6 @@ class Helper(Color):
                 self.verbose('"{}" not available\n'.format(self.__locale))
             else:
                 os.system('msgfmt -o django.mo django.po')
-                os.chdir(self.__wkdir)
                 self.verbose('Done\n')
 
     def run_upgrade(self):
@@ -256,7 +254,7 @@ class Helper(Color):
         """
         self.check()
         if self.confirm('Prepares seafile-server\'s instance ?'):
-            self.prepare_upgrade()
+            self.prepare_server()
         if self.confirm('Select a seahub locale ?'):
             self.set_locale_selected()
             self.configure_locale()
@@ -322,7 +320,7 @@ def main():
             call_funcs(args.__dict__, funcs)
         else:
             funcs = {
-                'prepare': helper.prepare_upgrade,
+                'prepare': helper.prepare_server,
                 'locale': helper.configure_locale,
                 'upgrade': helper.run_upgrade,
             }
