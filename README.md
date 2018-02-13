@@ -5,7 +5,7 @@ Only tested with seafile-server and seahub ArchLinux packages.
 ## Installation
 
 ### ArchLinux:
-View [AUR](https://aur.archlinux.org/packages/seafile-helper/) package.
+See [AUR](https://aur.archlinux.org/packages/seafile-helper/) package.
 
 ### Other:
 A vitualenv is advisable.
