@@ -30,10 +30,9 @@ import argparse
 class Color(object):
     """Defines a Color class object for color stdout
     """
-    def __init__(self, activate=True):
+    def __init__(self):
         """activate=False deactivate the coloring
         """
-        self.__activate = activate
         self.__colors = {
             'black': '0m',
             'red': '1m',
@@ -48,29 +47,20 @@ class Color(object):
     def color(self, string, color):
         """Return string with light weight color
         """
-        if self.__activate:
-            return '\033[3' + self.__colors[color] + string + '\033[0;0m'
-        else:
-            return string
+        return '\033[3' + self.__colors[color] + string + '\033[0;0m'
 
     def bold(self, string, color=None):
         """Return string with bold weight color
         """
-        if self.__activate:
-            if color:
-                return '\033[1;3' + self.__colors[color] + string + '\033[0;0m'
-            else:
-                return '\033[1m' + string + '\033[0;0m'
+        if color:
+            return '\033[1;3' + self.__colors[color] + string + '\033[0;0m'
         else:
-            return string
+            return '\033[1m' + string + '\033[0;0m'
 
     def background(self, string, color):
         """Return string with background color
         """
-        if self.__activate:
-            return '\033[4' + self.__colors[color] + string + '\033[0;0m'
-        else:
-            return string
+        return '\033[4' + self.__colors[color] + string + '\033[0;0m'
 
 
 class Helper(Color):
@@ -79,17 +69,88 @@ class Helper(Color):
     def __init__(self,
         upgrade=None,
         locale=None,
-        verbose=True,
-        confirm=True,
-        color=True):
+        confirm=True):
 
-        Color.__init__(self, color)
-        self.__wkdir = os.getcwd()
+        Color.__init__(self)
+        self.__wrkdir = os.path.join(os.getcwd(), 'seafile-server')
         self.__pkgdir = '/usr/share/seafile-server'
         self.__locale = locale
-        self.__verbose = verbose
         self.__upgrade = upgrade
         self.__confirm = confirm
+
+    def check(self):
+        """Check required conditions
+        """
+        if not os.path.isdir(self.__wrkdir):
+            sys.exit('"seafile-server" is not in the current directory')
+        if os.environ['USER'] != 'seafile':
+            sys.exit('You must use seafile user, view sudo usage')
+        if os.path.isfile(os.path.join(self.__wrkdir, 'runtime', 'seahub.pid')):
+            sys.exit('You must stop seafile-server service')
+
+    def verbose(self, msg):
+        """Write in stdout
+        """
+        sys.stdout.write(msg)
+
+    def confirm(self, msg, interactive=False):
+        """Ask confirmation
+        """
+        if self.__confirm or interactive:
+            ask = self.bold(':: ', 'blue') + self.bold(msg + ' [Y/n] ')
+            reply = input(ask)
+            return reply in ('Y', 'y', '')
+        else:
+            return True
+
+    def prepare_server(self):
+        """Prepare server
+        Import runtime directory
+        Remove seahub-old and old upgrade
+        Backup seahub to seahub-old
+        Import seahub and upgrades
+        """
+    ## Import runtime directory
+        self.verbose('-> Import runtime... ')
+        try:
+            shutil.copytree(
+                os.path.join(self.__pkgdir, 'runtime'),
+                os.path.join(self.__wrkdir, 'runtime'))
+        except FileExistsError:
+            self.verbose('Already exist\n')
+        else:
+            self.verbose('Done\n')
+    ## Remove old backup
+        for dire in ('upgrade', 'seahub-old'):
+            self.verbose('-> Remove {}... '.format(dire))
+            try:
+                shutil.rmtree(
+                    os.path.join(self.__wrkdir, dire))
+            except FileNotFoundError:
+                self.verbose('Not exist\n')
+            else:
+                self.verbose('Done\n')
+    ## Seahub Backup
+        self.verbose('-> Backup seahub to seahub-old... ')
+        try:
+            shutil.move(
+                os.path.join(self.__wrkdir, 'seahub'),
+                os.path.join(self.__wrkdir, 'seahub-old'))
+        except FileNotFoundError:
+            self.verbose('Not exist\n')
+        else:
+            self.verbose('Done\n')
+    ## Import new files
+        self.verbose('-> Import scripts upgrade... ')
+        shutil.copytree(
+            os.path.join(self.__pkgdir, 'upgrade'),
+            os.path.join(self.__wrkdir, 'upgrade'))
+        self.verbose('Done\n')
+        self.verbose('-> Import seahub... ')
+        shutil.copytree(
+            os.path.join(self.__pkgdir, 'seahub'),
+            os.path.join(self.__wrkdir, 'seahub'))
+        self.verbose('Done\n')
 
     def get_locales_available(self):
         """Return list of locales available
@@ -103,83 +164,8 @@ class Helper(Color):
         os.chdir(os.path.join(self.__pkgdir, 'upgrade'))
         return sorted(glob.glob('*upgrade*.sh'))
 
-    def check(self):
-        """Check required conditions
-        """
-        if os.path.basename(self.__wkdir) != 'seafile-server':
-            sys.exit('You must be in /YourInstance/seafile-server/')
-        if os.environ['USER'] != 'seafile':
-            sys.exit('You must use seafile user, view « sudo usage »')
-        if os.path.isfile(os.path.join(self.__wkdir, 'runtime', 'seahub.pid')):
-            sys.exit('You must stop seafile-server service')
-
-    def verbose(self, msg):
-        """Write in stdout
-        """
-        if self.__verbose:
-            sys.stdout.write(msg)
-
-    def confirm(self, msg):
-        """Ask confirmation
-        """
-        if self.__confirm:
-            ask = self.bold(':: ', 'blue') + self.bold(msg + ' [y/N] ')
-            reply = input(ask)
-            return reply == 'y' or reply == 'Y'
-        else:
-            return True
-
-    def prepare_server(self):
-        """Prepare server
-        Import requierements
-        Remove seahub-old and old upgrade
-        Backup seahub to seahub-old
-        Import seahub and upgrades
-        """
-        ## Requierements
-        self.verbose('-> Import runtime... ')
-        try:
-            shutil.copytree(
-                os.path.join(self.__pkgdir, 'runtime'),
-                os.path.join(self.__wkdir, 'runtime'))
-        except FileExistsError:
-            self.verbose('Already exist\n')
-        else:
-            self.verbose('Done\n')
-        ## Remove
-        for dire in ('upgrade', 'seahub-old'):
-            self.verbose('-> Remove {}... '.format(dire))
-            try:
-                shutil.rmtree(
-                    os.path.join(self.__wkdir, dire))
-            except FileNotFoundError:
-                self.verbose('Not exist\n')
-            else:
-                self.verbose('Done\n')
-        ## Backup
-        self.verbose('-> Backup seahub to seahub-old... ')
-        try:
-            shutil.move(
-                os.path.join(self.__wkdir, 'seahub'),
-                os.path.join(self.__wkdir, 'seahub-old'))
-        except FileNotFoundError:
-            self.verbose('Not exist\n')
-        else:
-            self.verbose('Done\n')
-        ## Import
-        self.verbose('-> Import scripts upgrade... ')
-        shutil.copytree(
-            os.path.join(self.__pkgdir, 'upgrade'),
-            os.path.join(self.__wkdir, 'upgrade'))
-        self.verbose('Done\n')
-        self.verbose('-> Import seahub... ')
-        shutil.copytree(
-            os.path.join(self.__pkgdir, 'seahub'),
-            os.path.join(self.__wkdir, 'seahub'))
-        self.verbose('Done\n')
-
     def show(self, list_items, numbered=False):
-        """Show all list elements in stdout
+        """Show all list elements
         """
         i = 0
         bullet = '|-'
@@ -191,12 +177,12 @@ class Helper(Color):
             print(bullet_list.replace(bullet, self.bold(bullet, 'magenta'), 1))
 
     def show_locales(self):
-        """Show locales available in stdout
+        """Show locales available
         """
         self.show(self.get_locales_available())
 
     def show_upgrades(self):
-        """Show upgrades available in stdout
+        """Show upgrades available
         """
         self.show(self.get_upgrades_available())
 
@@ -227,14 +213,14 @@ class Helper(Color):
         upgrades = self.get_upgrades_available()
         self.__upgrade = self.select(upgrades, 'Select an upgrade (ex: 1)')
 
-    def configure_locale(self):
-        """Configure seahub locale with __locale attribut
+    def compile_locale(self):
+        """Compile seahub locale with __locale attribut
         """
-        if self.confirm('Use "{}" as locale ?'.format(self.__locale)):
-            self.verbose('-> Configure seahub locale... ')
+        if self.confirm('Compile "{}" locale ?'.format(self.__locale)):
+            self.verbose('-> Compile seahub locale... ')
             try:
                 os.chdir(os.path.join(
-                    self.__wkdir, 'seahub/locale',
+                    self.__wrkdir, 'seahub/locale',
                     self.__locale, 'LC_MESSAGES'))
             except FileNotFoundError:
                 self.verbose('"{}" not available\n'.format(self.__locale))
@@ -245,7 +231,7 @@ class Helper(Color):
     def run_upgrade(self):
         """Run __upgrade attribut as script
         """
-        os.chdir(os.path.join(self.__wkdir, 'upgrade'))
+        os.chdir(os.path.join(self.__wrkdir, 'upgrade'))
         if self.confirm('Run "{}" ?'.format(self.__upgrade)):
             os.system('./' + self.__upgrade)
 
@@ -253,12 +239,9 @@ class Helper(Color):
         """Interactive upgrade of seahub
         """
         self.check()
-        if self.confirm('Prepares seafile-server\'s instance ?'):
+        if self.confirm('Prepares seafile-server\'s instance ?', True):
             self.prepare_server()
-        if self.confirm('Select a seahub locale ?'):
-            self.set_locale_selected()
-            self.configure_locale()
-        if self.confirm('Select a script upgrade ?'):
+        if self.confirm('Select a script upgrade ?', True):
             self.set_upgrade_selected()
             self.run_upgrade()
 
@@ -267,23 +250,28 @@ def main():
     """For run helper in the console
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('-L', '--show-locales', action='store_true',
+    parser.add_argument('-l', '--show-locales', action='store_true',
         help='show locales available')
-    parser.add_argument('-U', '--show-upgrades', action='store_true',
+    parser.add_argument('-u', '--show-upgrades', action='store_true',
         help='show upgrades scripts available')
-    parser.add_argument('-i', '--interactive', action='store_true',
-        help='run in interactive mode')
     parser.add_argument('-p', '--prepare', action='store_true',
         help='prepare seafile-server for upgrade or deploying')
-    parser.add_argument('-l', '--locale', type=str,
-        help='configure locale')
-    parser.add_argument('-u', '--upgrade', type=str,
+    parser.add_argument('-L', '--locale', type=str,
+        help='compile locale')
+    parser.add_argument('-U', '--upgrade', type=str,
         help='run script upgrade')
-    parser.add_argument('--about', action='store_true')
-    parser.add_argument('--no-verbose', action='store_false')
-    parser.add_argument('--no-confirm', action='store_false')
-    parser.add_argument('--no-color', action='store_false')
+    parser.add_argument('-i', '--interactive', action='store_true',
+        help='ask confirmation')
+    parser.add_argument('-V', '--version', action='store_true',
+        help='show version information and exit')
     args = parser.parse_args()
+
+    def show_version():
+        """Show version and license
+        """
+        print(os.path.basename(sys.argv[0]) + ' version ' + VERSION)
+        print(__doc__)
+        sys.exit(0)
 
     def call_funcs(dict_args, dict_funcs):
         """Call functions
@@ -294,40 +282,32 @@ def main():
                 try:
                     dict_funcs[key]()
                 except KeyError:
-                    pass
+                    continue
 
     helper = Helper(args.upgrade,
                     args.locale,
-                    args.no_verbose,
-                    args.no_confirm,
-                    args.no_color)
-    scriptname = os.path.basename(sys.argv[0])
+                    args.interactive)
     try:
-        sys.argv[1]
-    except IndexError:
-        sys.exit('Argument missing, view « {} --help »'.format(scriptname))
-    try:
-        if args.interactive:
+        if len(sys.argv) == 1:
             helper.interactive()
-        elif args.about:
-            print(scriptname + ' version ' + VERSION)
-            print(__doc__)
-        elif args.show_locales or args.show_upgrades:
+        elif args.show_locales or args.show_upgrades or args.version:
             funcs = {
                 'show_locales': helper.show_locales,
                 'show_upgrades': helper.show_upgrades,
+                'version': show_version,
             }
             call_funcs(args.__dict__, funcs)
         else:
+            helper.check()
             funcs = {
                 'prepare': helper.prepare_server,
-                'locale': helper.configure_locale,
+                'locale': helper.compile_locale,
                 'upgrade': helper.run_upgrade,
             }
-            helper.check()
             call_funcs(args.__dict__, funcs)
     except KeyboardInterrupt:
-        sys.exit('')
+        sys.stdout.write('\n')
+        sys.exit(130)
 
 if __name__ == '__main__':
     main()
