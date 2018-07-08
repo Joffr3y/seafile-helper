@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.\
 """
 
-VERSION = '0.1.2'
+VERSION = '0.1.4'
 
 import os
 import sys
@@ -31,8 +31,6 @@ class Color(object):
     """Defines a Color class object for color stdout
     """
     def __init__(self):
-        """activate=False deactivate the coloring
-        """
         self.__colors = {
             'black': '0m',
             'red': '1m',
@@ -63,15 +61,48 @@ class Color(object):
         return '\033[4' + self.__colors[color] + string + '\033[0;0m'
 
 
-class Helper(Color):
-    """Defines a Helper derived of Color class
+class UI(Color):
+    """Defines a UI derived of Color class
+    """
+    def __init__(self):
+        Color.__init__(self)
+
+    def arrow(self, msg=''):
+        """msg with arrow prefix
+        """
+        return self.bold('==> ', 'yellow') + self.bold(msg)
+
+    def bullet(self, ch, msg):
+        """msg with bullet prefix
+        """
+        brut = '{:<2} {}'.format(ch, msg)
+        return brut.replace(ch, self.bold(ch, 'magenta') , 1)
+
+    def scope(self, msg):
+        """msg with scope prefix
+        """
+        return self.bold(':: ', 'blue') + self.bold(msg)
+
+    def msg(self, msg):
+        """Write msg in stdout without endline
+        """
+        sys.stdout.write(msg)
+
+    def msgerr(self, msg):
+        """Print msg in stderr
+        """
+        print(self.bold(msg, 'red'), file=sys.stderr)
+
+
+class Helper(UI):
+    """Defines a Helper class derived of Color
     """
     def __init__(self,
         upgrade=None,
         locale=None,
         confirm=True):
 
-        Color.__init__(self)
+        UI.__init__(self)
         self.__wrkdir = os.path.join(os.getcwd(), 'seafile-server')
         self.__pkgdir = '/usr/share/seafile-server'
         self.__locale = locale
@@ -82,23 +113,20 @@ class Helper(Color):
         """Check required conditions
         """
         if not os.path.isdir(self.__wrkdir):
-            sys.exit('"seafile-server" is not in the current directory')
+            self.msgerr('"seafile-server" not found in the current directory')
+            sys.exit(1)
         if os.environ['USER'] != 'seafile':
-            sys.exit('You must use seafile user, view sudo usage')
+            self.msgerr('You must use seafile user, view sudo usage')
+            sys.exit(1)
         if os.path.isfile(os.path.join(self.__wrkdir, 'runtime', 'seahub.pid')):
-            sys.exit('You must stop seafile-server service')
-
-    def verbose(self, msg):
-        """Write in stdout
-        """
-        sys.stdout.write(msg)
+            self.msgerr('You must stop seafile-server service')
+            sys.exit(1)
 
     def confirm(self, msg, interactive=False):
         """Ask confirmation
         """
         if self.__confirm or interactive:
-            ask = self.bold(':: ', 'blue') + self.bold(msg + ' [Y/n] ')
-            reply = input(ask)
+            reply = input(self.scope(msg + ' [Y/n] '))
             return reply in ('Y', 'y', '')
         else:
             return True
@@ -111,46 +139,46 @@ class Helper(Color):
         Import seahub and upgrades
         """
     ## Import runtime directory
-        self.verbose('-> Import runtime... ')
+        self.msg('-> Import runtime... ')
         try:
             shutil.copytree(
                 os.path.join(self.__pkgdir, 'runtime'),
                 os.path.join(self.__wrkdir, 'runtime'))
         except FileExistsError:
-            self.verbose('Already exist\n')
+            self.msg('Already exist\n')
         else:
-            self.verbose('Done\n')
+            self.msg('Done\n')
     ## Remove old backup
         for dire in ('upgrade', 'seahub-old'):
-            self.verbose('-> Remove {}... '.format(dire))
+            self.msg('-> Remove {}... '.format(dire))
             try:
                 shutil.rmtree(
                     os.path.join(self.__wrkdir, dire))
             except FileNotFoundError:
-                self.verbose('Not exist\n')
+                self.msg('Not exist\n')
             else:
-                self.verbose('Done\n')
+                self.msg('Done\n')
     ## Seahub Backup
-        self.verbose('-> Backup seahub to seahub-old... ')
+        self.msg('-> Backup seahub to seahub-old... ')
         try:
             shutil.move(
                 os.path.join(self.__wrkdir, 'seahub'),
                 os.path.join(self.__wrkdir, 'seahub-old'))
         except FileNotFoundError:
-            self.verbose('Not exist\n')
+            self.msg('Not exist\n')
         else:
-            self.verbose('Done\n')
+            self.msg('Done\n')
     ## Import new files
-        self.verbose('-> Import scripts upgrade... ')
+        self.msg('-> Import scripts upgrade... ')
         shutil.copytree(
             os.path.join(self.__pkgdir, 'upgrade'),
             os.path.join(self.__wrkdir, 'upgrade'))
-        self.verbose('Done\n')
-        self.verbose('-> Import seahub... ')
+        self.msg('Done\n')
+        self.msg('-> Import seahub... ')
         shutil.copytree(
             os.path.join(self.__pkgdir, 'seahub'),
             os.path.join(self.__wrkdir, 'seahub'))
-        self.verbose('Done\n')
+        self.msg('Done\n')
 
     def get_locales_available(self):
         """Return list of locales available
@@ -168,13 +196,12 @@ class Helper(Color):
         """Show all list elements
         """
         i = 0
-        bullet = '|-'
+        ch = '|-'
         for item in list_items:
             i += 1
             if numbered:
-                bullet = str(i)
-            bullet_list = '{0:<2} {1}'.format(bullet, item)
-            print(bullet_list.replace(bullet, self.bold(bullet, 'magenta'), 1))
+                ch = str(i)
+            print(self.bullet(ch, item))
 
     def show_locales(self):
         """Show locales available
@@ -192,10 +219,9 @@ class Helper(Color):
         Return element selected
         """
         self.show(list_items, numbered=True)
-        arrow = self.bold('==> ', 'yellow')
-        print(arrow + self.bold(msg))
+        print(self.arrow(msg))
         try:
-            reply = int(input(arrow))
+            reply = int(input(self.arrow()))
         except ValueError:
             sys.exit(1)
         if reply > 0 and reply <= len(list_items):
@@ -217,16 +243,16 @@ class Helper(Color):
         """Compile seahub locale with __locale attribut
         """
         if self.confirm('Compile "{}" locale ?'.format(self.__locale)):
-            self.verbose('-> Compile seahub locale... ')
+            self.msg('-> Compile seahub locale... ')
             try:
                 os.chdir(os.path.join(
                     self.__wrkdir, 'seahub/locale',
                     self.__locale, 'LC_MESSAGES'))
             except FileNotFoundError:
-                self.verbose('"{}" not available\n'.format(self.__locale))
+                self.msgerr('"' + self.__locale + '" locale is not available')
             else:
                 os.system('msgfmt -o django.mo django.po')
-                self.verbose('Done\n')
+                self.msg('Done\n')
 
     def run_upgrade(self):
         """Run __upgrade attribut as script
