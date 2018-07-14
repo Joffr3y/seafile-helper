@@ -31,7 +31,7 @@ setup(
         'Operating System :: POSIX :: Linux'
         'Programming Language :: Python :: 3.6'
         'Topic :: Communications :: GitHub'
-        ],
+    ],
     keywords='python seafile seahub',
     entry_points={
         'console_scripts': ['seafile-helper = seafile_helper.helper:main']
